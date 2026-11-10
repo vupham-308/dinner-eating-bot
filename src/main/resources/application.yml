@@ -1,0 +1,26 @@
+spring:
+  main:
+    web-application-type: none
+  datasource:
+    url: ${DB_URL:jdbc:sqlserver://localhost:1433;databaseName=dinner_bot;encrypt=true;trustServerCertificate=true}
+    username: ${DB_USER:sa}
+    password: ${DB_PASSWORD:YourStrong@Passw0rd}
+    driver-class-name: com.microsoft.sqlserver.jdbc.SQLServerDriver
+  sql:
+    init:
+      mode: always
+      schema-locations: classpath:schema.sql
+      encoding: UTF-8
+
+bot:
+  token: ${BOT_TOKEN:}
+  timezone: Asia/Ho_Chi_Minh
+  # Cổng health check: GET http://<host>:6970/health
+  http-port: ${PORT:6970}
+  # Chỉ dùng để khởi tạo khi bảng members còn trống.
+  # Định dạng: telegramId:Tên:role  (role = admin | member), cách nhau bằng dấu phẩy
+  members: ${BOT_MEMBERS:111111111:An:admin,222222222:Bình:member,333333333:Chi:member}
+
+logging:
+  level:
+    com.kai.dinnerbot: INFO
