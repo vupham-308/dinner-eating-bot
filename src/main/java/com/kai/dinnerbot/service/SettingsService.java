@@ -1,5 +1,6 @@
 package com.kai.dinnerbot.service;
 
+import com.kai.dinnerbot.dto.BotSettings;
 import com.kai.dinnerbot.repo.Repo;
 import org.springframework.stereotype.Service;
 

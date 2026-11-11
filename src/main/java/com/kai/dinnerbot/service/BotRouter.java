@@ -1,7 +1,7 @@
 package com.kai.dinnerbot.service;
 
 import com.fasterxml.jackson.databind.JsonNode;
-import com.kai.dinnerbot.model.Member;
+import com.kai.dinnerbot.dto.Member;
 import com.kai.dinnerbot.repo.Repo;
 import com.kai.dinnerbot.telegram.Cb;
 import com.kai.dinnerbot.telegram.TelegramClient;
@@ -68,10 +68,8 @@ public class BotRouter {
         long tgId = msg.path("from").path("id").asLong();
         String text = msg.path("text").asText("").trim();
         Optional<Member> om = repo.memberByTg(tgId);
-        if (om.isEmpty()) {
-            tg.send(tgId, Msg.unauthorized(tgId));
-            return;
-        }
+        if (om.isEmpty()) om = onStranger(msg.path("from"), tgId);
+        if (om.isEmpty()) return;
         Member me = om.get();
         if (!me.started()) repo.setStarted(me.id());
 
@@ -85,6 +83,33 @@ public class BotRouter {
             case "/admin" -> admin.sendMenu(me);
             default -> tg.send(tgId, Msg.start(me, settings.load(time.today()).poll()));
         }
+    }
+
+    /**
+     * Người chưa là thành viên nhắn bot.
+     * - Bảng members còn trống: người này thành admin đầu tiên.
+     * - Ngược lại: ghi vào join_requests để admin thêm nhanh từ /admin → Thành viên.
+     */
+    private Optional<Member> onStranger(JsonNode from, long tgId) {
+        String name = displayName(from);
+        if (repo.countMembers() == 0) {
+            repo.insertMember(tgId, name, "admin");
+            log.info("Thành viên đầu tiên {} ({}) trở thành admin", name, tgId);
+            tg.send(tgId, Msg.firstAdmin(name));
+            return repo.memberByTg(tgId);
+        }
+        String username = from.path("username").asText("");
+        repo.touchJoinRequest(tgId, name, username.isBlank() ? null : username,
+                time.now(), time.now().minusDays(AdminService.JOIN_REQUEST_DAYS));
+        tg.send(tgId, Msg.unauthorized(tgId, repo.countMembers() >= Member.MAX));
+        return Optional.empty();
+    }
+
+    private static String displayName(JsonNode from) {
+        String name = (from.path("first_name").asText("") + " " + from.path("last_name").asText("")).trim();
+        if (name.isEmpty()) name = from.path("username").asText("");
+        if (name.isEmpty()) name = String.valueOf(from.path("id").asLong());
+        return name.length() > 50 ? name.substring(0, 50) : name;
     }
 
     private void onCallback(JsonNode q) {

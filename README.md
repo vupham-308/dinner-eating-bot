@@ -11,7 +11,6 @@ Java 17 · Spring Boot 3.3 · MS SQL Server · Telegram Bot API (long polling, k
    ```
    Các bảng sẽ được bot tự tạo khi khởi động (`src/main/resources/schema.sql`).
 3. **Tạo bot**: chat với `@BotFather` → `/newbot` → lấy **token**.
-4. **Lấy Telegram ID** của 3 thành viên: mỗi người nhắn cho `@userinfobot` (hoặc chạy bot trước, nhắn `/start`, bot sẽ trả lời ID của bạn).
 
 ## 2. Cấu hình
 
@@ -22,14 +21,16 @@ $env:BOT_TOKEN   = "123456:ABC..."
 $env:DB_URL      = "jdbc:sqlserver://localhost:1433;databaseName=dinner_bot;encrypt=true;trustServerCertificate=true"
 $env:DB_USER     = "sa"
 $env:DB_PASSWORD = "matkhau"
-# telegramId:Tên:role — chỉ dùng để khởi tạo khi bảng members còn trống
-$env:BOT_MEMBERS = "111111111:An:admin,222222222:Bình:member,333333333:Chi:member"
 ```
 
 Hoặc sửa thẳng trong `src/main/resources/application.yml`.
 
-> Sau lần chạy đầu, thành viên được lưu trong DB. Muốn đổi tên / ID thì dùng `/admin → Thành viên`
-> (đổi `BOT_MEMBERS` không còn tác dụng). Muốn đổi role admin thì sửa cột `role` trong bảng `members`.
+> **Thành viên** (tối đa 3) không cấu hình bằng biến môi trường:
+> 1. Chạy bot với DB trống → **người đầu tiên nhắn bot** trở thành admin. Hãy nhắn ngay sau khi deploy.
+> 2. Người khác nhắn bot một tin bất kỳ (bot báo chưa có quyền và ghi lại họ trong 7 ngày).
+> 3. Admin vào `/admin → 👥 Thành viên → ➕ Thêm thành viên` → bấm tên người đó.
+>
+> Đổi tên / ID dùng `/admin → Thành viên`. Muốn đổi role admin thì sửa cột `role` trong bảng `members`.
 
 ## 3. Chạy
 
@@ -70,7 +71,7 @@ Nếu bot được bật **sau giờ chốt** mà hôm đó chưa chạy thì ng
 | `/admin` | thành viên | Mọi người xem được; chỉ `role = admin` mới sửa được |
 | `/huy` | admin | Huỷ thao tác đang nhập |
 
-**Admin:** thành viên (đổi tên/ID), lượt nấu (±1, đặt số, rollback ngày đã nấu trong 3 ngày gần nhất),
+**Admin:** thành viên (thêm từ danh sách người nhắn gần đây, đổi tên/ID), lượt nấu (±1, đặt số, rollback ngày đã nấu trong 3 ngày gần nhất),
 hôm nay (sửa ăn/không, chốt sớm, giao nấu, giao đi chợ, huỷ hôm nay), lịch đặt trước của mọi người,
 cấu hình giờ (giờ chưa tới → áp dụng ngay, đã qua → từ ngày mai), tạm dừng theo khoảng ngày, gửi báo cáo ngay.
 Mọi thao tác admin được ghi vào bảng `admin_logs`.
@@ -80,7 +81,8 @@ Mọi thao tác admin được ghi vào bảng `admin_logs`.
 ```
 src/main/java/com/kai/dinnerbot
 ├── DinnerBotApplication.java
-├── model/            Member, DaySession, Schedule, CookStat, CookRequest, EatResponse, Status
+├── dto/              Member, JoinRequest, DaySession, Schedule, CookStat, CookRequest, EatResponse, BotSettings
+├── model/            Status (hằng số trạng thái phiên)
 ├── repo/Repo.java    toàn bộ SQL (JdbcTemplate)
 ├── telegram/         TelegramClient (gọi Bot API), UpdatePoller (long polling), Btn, Cb
 └── service/
@@ -90,11 +92,11 @@ src/main/java/com/kai/dinnerbot
     ├── AdminService          /admin
     ├── SettingsService       cấu hình giờ, tạm dừng
     ├── BotRouter             nhận tin/nút bấm + tick 20s (dùng chung 1 khoá)
-    └── MemberSeeder          khởi tạo thành viên
+    └── MemberSeeder          kiểm tra lúc khởi động (bảng members trống → người nhắn đầu tiên là admin)
 ```
 
 ## 7. Bảng dữ liệu
 
 `members` (có `role`), `cook_stats` (số lần nấu), `daily_sessions` (trạng thái từng ngày),
 `eat_responses`, `schedules` (lịch đặt trước), `cook_requests` (lịch sử hỏi nấu),
-`bot_messages` (để tắt nút), `settings`, `admin_logs`.
+`bot_messages` (để tắt nút), `settings`, `admin_logs`, `join_requests` (người lạ nhắn bot, chờ admin thêm).

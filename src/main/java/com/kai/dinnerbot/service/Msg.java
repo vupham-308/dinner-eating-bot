@@ -1,6 +1,6 @@
 package com.kai.dinnerbot.service;
 
-import com.kai.dinnerbot.model.Member;
+import com.kai.dinnerbot.dto.Member;
 
 import java.time.DayOfWeek;
 import java.time.LocalDate;
@@ -177,9 +177,17 @@ public final class Msg {
                 + "/admin — xem thông tin hệ thống";
     }
 
-    public static String unauthorized(long tgId) {
-        return "⛔ Bạn không có trong danh sách thành viên.\n"
-                + "ID Telegram của bạn: " + tgId + " (gửi cho admin nếu cần thêm).";
+    public static String unauthorized(long tgId, boolean full) {
+        String base = "⛔ Bạn không có trong danh sách thành viên.\nID Telegram của bạn: " + tgId + "\n";
+        return base + (full
+                ? "Bot đã đủ " + Member.MAX + " thành viên."
+                : "Nhờ admin vào /admin → 👥 Thành viên → ➕ Thêm để thêm bạn.");
+    }
+
+    public static String firstAdmin(String name) {
+        return "👑 Chào " + name + "! Bạn là người đầu tiên nên được đặt làm admin.\n"
+                + "Thêm người khác: nhờ họ nhắn bot một tin bất kỳ, rồi vào /admin → 👥 Thành viên → ➕ Thêm "
+                + "(tối đa " + Member.MAX + " người).";
     }
 
     public static final String VIEW_ONLY = "👁 Bạn chỉ có quyền xem.";

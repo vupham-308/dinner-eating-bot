@@ -17,9 +17,6 @@ bot:
   timezone: Asia/Ho_Chi_Minh
   # Cổng health check: GET http://<host>:6970/health
   http-port: ${PORT:6970}
-  # Chỉ dùng để khởi tạo khi bảng members còn trống.
-  # Định dạng: telegramId:Tên:role  (role = admin | member), cách nhau bằng dấu phẩy
-  members: ${BOT_MEMBERS:111111111:An:admin,222222222:Bình:member,333333333:Chi:member}
 
 logging:
   level:

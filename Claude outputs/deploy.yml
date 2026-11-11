@@ -1,0 +1,89 @@
+name: Deploy Dinner Bot to Oracle VPS
+
+on:
+  push:
+    branches: [ "main" ]
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-dinner-bot
+  cancel-in-progress: false
+
+env:
+  APP_DIR: /home/ubuntu/app/dinner-bot
+
+jobs:
+  build-and-deploy:
+    name: Build & Deploy Dinner Bot
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Validate deployment secrets
+        env:
+          BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
+          DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
+          ORACLE_HOST: ${{ secrets.ORACLE_HOST }}
+          ORACLE_SSH_KEY: ${{ secrets.ORACLE_SSH_KEY }}
+        run: |
+          missing=0
+          for name in BOT_TOKEN DB_PASSWORD ORACLE_HOST ORACLE_SSH_KEY; do
+            if [ -z "${!name:-}" ]; then
+              echo "Missing GitHub Actions secret: $name" >&2
+              missing=1
+            fi
+          done
+          exit $missing
+
+      - name: Checkout Source Code
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+          cache: maven
+
+      - name: Build JAR with Maven
+        run: mvn clean package -DskipTests -B --no-transfer-progress
+
+      - name: Prepare deploy bundle
+        run: |
+          mkdir -p deploy
+          cp target/dinner-bot-*.jar deploy/dinner-bot.jar
+          cp scripts/deploy-dinner-bot.sh deploy/
+
+      - name: Copy JAR & script to Oracle VPS
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.ORACLE_HOST }}
+          username: ${{ secrets.ORACLE_USER || 'ubuntu' }}
+          key: ${{ secrets.ORACLE_SSH_KEY }}
+          port: ${{ secrets.ORACLE_PORT || 22 }}
+          source: "deploy/dinner-bot.jar,deploy/deploy-dinner-bot.sh"
+          target: ${{ env.APP_DIR }}
+          strip_components: 1
+          overwrite: true
+
+      - name: Recreate container via SSH
+        uses: appleboy/ssh-action@v1.0.3
+        env:
+          APP_DIR: ${{ env.APP_DIR }}
+          BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
+          DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
+          # Không bí mật -> để ở Variables (Settings → Secrets and variables → Actions → Variables), có giá trị mặc định
+          DB_URL: ${{ vars.DB_URL || 'jdbc:sqlserver://localhost:1433;databaseName=dinner_bot;encrypt=true;trustServerCertificate=true' }}
+          DB_USER: ${{ vars.DB_USER || 'sa' }}
+          PORT: ${{ vars.PORT || '6970' }}
+        with:
+          envs: APP_DIR,BOT_TOKEN,DB_PASSWORD,DB_URL,DB_USER,PORT
+          host: ${{ secrets.ORACLE_HOST }}
+          username: ${{ secrets.ORACLE_USER || 'ubuntu' }}
+          key: ${{ secrets.ORACLE_SSH_KEY }}
+          port: ${{ secrets.ORACLE_PORT || 22 }}
+          command_timeout: 10m
+          script: |
+            set -eu
+            echo "Tạo lại container dinner-bot..."
+            bash "$APP_DIR/deploy-dinner-bot.sh"
+            echo "Triển khai Dinner Bot lên VPS Oracle hoàn tất!"

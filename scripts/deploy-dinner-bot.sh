@@ -4,7 +4,7 @@ set -euo pipefail
 
 APP_DIR="${APP_DIR:-/home/ubuntu/app/dinner-bot}"
 CONTAINER="dinner-bot"
-IMAGE="eclipse-temurin:17-jre"
+IMAGE="eclipse-temurin:21-jre"   # khớp java.version trong pom.xml
 JAR="$APP_DIR/dinner-bot.jar"
 PORT="${PORT:-6970}"
 
@@ -28,8 +28,6 @@ trap 'rm -f "$ENV_FILE"' EXIT
   echo "DB_URL=${DB_URL}"
   echo "DB_USER=${DB_USER}"
   echo "DB_PASSWORD=${DB_PASSWORD}"
-  # Chỉ dùng khi bảng members còn trống (lần chạy đầu)
-  if [ -n "${BOT_MEMBERS:-}" ]; then echo "BOT_MEMBERS=${BOT_MEMBERS}"; fi
   echo "PORT=${PORT}"
   echo "TZ=Asia/Ho_Chi_Minh"
   # JVM tự nhận giới hạn CPU/RAM của container; heap tối đa 256m (container giới hạn 384m)

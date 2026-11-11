@@ -1,7 +1,7 @@
 package com.kai.dinnerbot.service;
 
-import com.kai.dinnerbot.model.Member;
-import com.kai.dinnerbot.model.Schedule;
+import com.kai.dinnerbot.dto.Member;
+import com.kai.dinnerbot.dto.Schedule;
 import com.kai.dinnerbot.repo.Repo;
 import com.kai.dinnerbot.telegram.Btn;
 import com.kai.dinnerbot.telegram.Cb;

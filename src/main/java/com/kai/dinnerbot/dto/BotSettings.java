@@ -1,4 +1,4 @@
-package com.kai.dinnerbot.service;
+package com.kai.dinnerbot.dto;
 
 import java.time.LocalTime;
 

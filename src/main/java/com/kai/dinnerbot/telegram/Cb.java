@@ -1,6 +1,6 @@
 package com.kai.dinnerbot.telegram;
 
-import com.kai.dinnerbot.model.Member;
+import com.kai.dinnerbot.dto.Member;
 
 /** Ngữ cảnh 1 lần bấm nút. Đảm bảo luôn trả lời callback đúng 1 lần. */
 public class Cb {

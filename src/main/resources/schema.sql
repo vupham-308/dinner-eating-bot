@@ -86,6 +86,15 @@ CREATE TABLE dbo.admin_logs (
     created_at  DATETIME2     NOT NULL DEFAULT SYSDATETIME()
 );
 
+-- Người lạ (chưa là thành viên) vừa nhắn bot — admin chọn từ đây để thêm nhanh
+IF OBJECT_ID('dbo.join_requests', 'U') IS NULL
+CREATE TABLE dbo.join_requests (
+    telegram_id  BIGINT        NOT NULL PRIMARY KEY,
+    name         NVARCHAR(100) NOT NULL,
+    username     NVARCHAR(100) NULL,
+    last_seen    DATETIME2     NOT NULL
+);
+
 -- Giá trị mặc định
 IF NOT EXISTS (SELECT 1 FROM dbo.settings WHERE k = 'precheck_time') INSERT INTO dbo.settings (k, v) VALUES ('precheck_time', '13:00');
 IF NOT EXISTS (SELECT 1 FROM dbo.settings WHERE k = 'poll_time') INSERT INTO dbo.settings (k, v) VALUES ('poll_time', '14:00');

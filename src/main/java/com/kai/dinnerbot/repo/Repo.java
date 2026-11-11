@@ -1,5 +1,6 @@
 package com.kai.dinnerbot.repo;
 
+import com.kai.dinnerbot.dto.*;
 import com.kai.dinnerbot.model.*;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -103,6 +104,46 @@ public class Repo {
 
     public void changeTelegramId(int id, long tgId) {
         jdbc.update("UPDATE members SET telegram_id = ?, started = 0 WHERE id = ?", tgId, id);
+    }
+
+    // ======================= join requests =======================
+
+    private static final RowMapper<JoinRequest> JOIN_REQ = (rs, i) -> new JoinRequest(
+            rs.getLong("telegram_id"), rs.getString("name"), rs.getString("username"),
+            rs.getTimestamp("last_seen").toLocalDateTime());
+
+    /** Ghi nhận người lạ vừa nhắn bot; xoá các yêu cầu cũ hơn {@code keepSince}. */
+    @Transactional
+    public void touchJoinRequest(long tgId, String name, String username, LocalDateTime now, LocalDateTime keepSince) {
+        Timestamp ts = Timestamp.valueOf(now);
+        int n = jdbc.update("UPDATE join_requests SET name = ?, username = ?, last_seen = ? WHERE telegram_id = ?",
+                name, username, ts, tgId);
+        if (n == 0) {
+            try {
+                jdbc.update("INSERT INTO join_requests (telegram_id, name, username, last_seen) VALUES (?, ?, ?, ?)",
+                        tgId, name, username, ts);
+            } catch (DuplicateKeyException ignored) {
+                // đã có người khác chèn cùng lúc — bỏ qua
+            }
+        }
+        jdbc.update("DELETE FROM join_requests WHERE last_seen < ?", Timestamp.valueOf(keepSince));
+    }
+
+    /** Người lạ nhắn bot gần đây (chưa là thành viên), mới nhất trước. */
+    public List<JoinRequest> joinRequests(LocalDateTime since, int limit) {
+        return jdbc.query("""
+                SELECT TOP (?) j.* FROM join_requests j
+                 WHERE j.last_seen >= ?
+                   AND NOT EXISTS (SELECT 1 FROM members m WHERE m.telegram_id = j.telegram_id)
+                 ORDER BY j.last_seen DESC""", JOIN_REQ, limit, Timestamp.valueOf(since));
+    }
+
+    public Optional<JoinRequest> joinRequest(long tgId) {
+        return jdbc.query("SELECT * FROM join_requests WHERE telegram_id = ?", JOIN_REQ, tgId).stream().findFirst();
+    }
+
+    public void deleteJoinRequest(long tgId) {
+        jdbc.update("DELETE FROM join_requests WHERE telegram_id = ?", tgId);
     }
 
     // ======================= sessions =======================

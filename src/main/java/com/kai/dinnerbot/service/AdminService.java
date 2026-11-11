@@ -1,5 +1,6 @@
 package com.kai.dinnerbot.service;
 
+import com.kai.dinnerbot.dto.*;
 import com.kai.dinnerbot.model.*;
 import com.kai.dinnerbot.repo.Repo;
 import com.kai.dinnerbot.telegram.Btn;
@@ -23,6 +24,10 @@ import static com.kai.dinnerbot.telegram.Btn.row;
 public class AdminService {
 
     private static final int ROLLBACK_DAYS = 3;
+    /** Chỉ hiện (và giữ) người lạ nhắn bot trong số ngày này. */
+    public static final int JOIN_REQUEST_DAYS = 7;
+    private static final int JOIN_REQUEST_LIMIT = 10;
+    private static final DateTimeFormatter DM_HM = DateTimeFormatter.ofPattern("dd/MM HH:mm");
     private static final DateTimeFormatter DMY = DateTimeFormatter.ofPattern("d/M/yyyy");
     private static final DateTimeFormatter DMY_OUT = DateTimeFormatter.ofPattern("dd/MM/yyyy");
 
@@ -124,9 +129,10 @@ public class AdminService {
     // =====================================================================
 
     private View members(Member me) {
-        StringBuilder sb = new StringBuilder("👥 Thành viên\n");
+        List<Member> list = repo.members();
+        StringBuilder sb = new StringBuilder("👥 Thành viên (" + list.size() + "/" + Member.MAX + ")\n");
         List<List<Btn>> kb = new ArrayList<>();
-        for (Member m : repo.members()) {
+        for (Member m : list) {
             sb.append("\n• ").append(m.name()).append(m.isAdmin() ? " (admin)" : "")
                     .append(" — ID ").append(m.telegramId())
                     .append(" — ").append(m.started() ? "✅ đã /start" : "⚠️ chưa /start");
@@ -135,14 +141,87 @@ public class AdminService {
                         Btn.of("🆔 ID: " + m.name(), "adm:mem:tg:" + m.id())));
             }
         }
+        if (me.isAdmin() && list.size() < Member.MAX) {
+            kb.add(row(Btn.of("➕ Thêm thành viên", "adm:mem:add")));
+        }
         kb.add(back());
         return new View(sb.toString(), kb);
+    }
+
+    /** Danh sách người lạ nhắn bot gần đây để admin bấm thêm nhanh. */
+    private View addMember() {
+        int free = Member.MAX - repo.countMembers();
+        List<List<Btn>> kb = new ArrayList<>();
+        if (free <= 0) {
+            kb.add(row(Btn.of("⬅️ Quay lại", "adm:mem")));
+            return new View("✅ Đã đủ " + Member.MAX + " thành viên, không thêm được nữa.", kb);
+        }
+        List<JoinRequest> reqs = repo.joinRequests(time.now().minusDays(JOIN_REQUEST_DAYS), JOIN_REQUEST_LIMIT);
+        StringBuilder sb = new StringBuilder("➕ Thêm thành viên — còn " + free + " chỗ\n");
+        if (reqs.isEmpty()) {
+            sb.append("\nChưa có ai nhắn bot trong ").append(JOIN_REQUEST_DAYS).append(" ngày qua.")
+                    .append("\nNhờ người cần thêm nhắn bot một tin bất kỳ, rồi bấm 🔄 Làm mới.");
+        } else {
+            sb.append("\nNgười nhắn bot gần đây — bấm để thêm:");
+            for (JoinRequest r : reqs) {
+                sb.append("\n• ").append(r.name())
+                        .append(r.username() != null ? " (@" + r.username() + ")" : "")
+                        .append(" — ID ").append(r.telegramId())
+                        .append(" — ").append(r.lastSeen().format(DM_HM));
+                kb.add(row(Btn.of("➕ " + r.name(), "adm:mem:addok:" + r.telegramId())));
+            }
+        }
+        kb.add(row(Btn.of("🔄 Làm mới", "adm:mem:add"), Btn.of("⬅️ Quay lại", "adm:mem")));
+        return new View(sb.toString(), kb);
+    }
+
+    private void onAddMember(Cb cb) {
+        long tgId;
+        try {
+            tgId = Long.parseLong(cb.part(3));
+        } catch (NumberFormatException e) {
+            cb.alert("Nút không hợp lệ.");
+            return;
+        }
+        if (repo.countMembers() >= Member.MAX) {
+            cb.alert("Đã đủ " + Member.MAX + " thành viên.");
+            show(cb, members(cb.member));
+            return;
+        }
+        if (repo.memberByTg(tgId).isPresent()) {
+            cb.alert("Người này đã là thành viên.");
+            show(cb, members(cb.member));
+            return;
+        }
+        JoinRequest r = repo.joinRequest(tgId).orElse(null);
+        if (r == null) {
+            cb.alert("Yêu cầu đã hết hạn — nhờ người đó nhắn bot lại.");
+            show(cb, addMember());
+            return;
+        }
+        repo.insertMember(tgId, r.name(), "member");
+        repo.deleteJoinRequest(tgId);
+        Member added = repo.memberByTg(tgId).orElseThrow();
+        repo.setStarted(added.id()); // họ đã nhắn bot nên bot nhắn lại được
+        log(cb.member, "Thêm thành viên " + r.name() + " (" + tgId + ")");
+        tg.send(tgId, "✅ " + cb.member.name() + " đã thêm bạn vào bot.\n"
+                + Msg.start(added, settings.load(time.today()).poll()));
+        cb.toast("Đã thêm " + r.name());
+        show(cb, members(cb.member));
     }
 
     private void onMembers(Cb cb) {
         String sub = cb.part(2);
         if (sub.isEmpty()) {
             show(cb, members(cb.member));
+            return;
+        }
+        if ("add".equals(sub)) {
+            show(cb, addMember());
+            return;
+        }
+        if ("addok".equals(sub)) {
+            onAddMember(cb);
             return;
         }
         Member target = repo.member(cb.intPart(3)).orElse(null);

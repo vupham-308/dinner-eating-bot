@@ -1,5 +1,6 @@
 package com.kai.dinnerbot.service;
 
+import com.kai.dinnerbot.dto.*;
 import com.kai.dinnerbot.model.*;
 import com.kai.dinnerbot.repo.Repo;
 import com.kai.dinnerbot.telegram.Btn;
